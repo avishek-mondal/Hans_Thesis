@@ -12,5 +12,13 @@ To Begin:
  with a the list of ips that starts with begin, noasname, and ends with end
 
 5. Extract Ases of guard relays using getas.py with list 
-6. 
+6. Run 
+```
+python counter_raptor_resilience.py
+```
+7. Run 
+```
+python calculate_prob.py
+```
+
 
