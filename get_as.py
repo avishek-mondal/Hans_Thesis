@@ -1,4 +1,4 @@
-file = open('current_ases', 'w')
+file = open('current_ases.txt', 'w')
 f = open('list02','r')
 ases = []
 for line in f:
