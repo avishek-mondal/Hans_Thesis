@@ -21,8 +21,9 @@ ips_to_bandwidth = {}
 ip_weighted_prob = {}
 epsilon_dict = {}
 ip_to_resilience = {}
+asIP_to_resilience = {}
 alpha = 0
-epsilon = 1
+epsilon = 2
 test_as = 3
 for line in file1_bandwidth_normalized:
 	info = line.split(":")
@@ -46,32 +47,39 @@ for line in file2_as:
 		ases_to_ips[key] = [value]
 file2_as.close()
 
+with open("cg_resilience.json") as data_file: 
+		data = json.load(data_file)
+		weights = {}
+		for key, values in data.items():
+			asIP_to_resilience[key] = dict()
+			while values:
+				to_as, resilience = values.popitem()
+				if to_as in ases_to_ips:
+					to_ips_in_as = ases_to_ips[to_as]
+					for ip in to_ips_in_as:
+						if ip in asIP_to_resilience[key]:
+							asIP_to_resilience[key][ip].append(resilience)
+						else:
+							asIP_to_resilience[key][ip] = [resilience]
+
 
 #Create dictionary of client weights given as 
-with open("cg_resilience.json") as data_file: 
+with open("tille_resiliences.json") as data_file: 
 	data = json.load(data_file)
 	weights = {}
 	for key, values in data.items():
 		client_as_weights = {}
-		ip_to_resilience[key] = dict()
 		while values:
-			to_as, resilience = values.popitem()
-			if to_as in ases_to_ips:
-				to_ips_in_as = ases_to_ips[to_as]
-				for to_ip in to_ips_in_as:
-					raptor_weight = 0
-					if ips_to_bandwidthN[to_ip] != 0:
-						raptor_weight = resilience*alpha + (1-alpha)*ips_to_bandwidthN[to_ip]
-					else:
-						raptor_weight = 0
-					if to_ip in client_as_weights:
-						client_as_weights[to_ip].append(raptor_weight)
-						ip_to_resilience[key][to_ip].append(resilience)
-					else:
-						client_as_weights[to_ip] = [raptor_weight]
-						ip_to_resilience[key][to_ip] = [resilience]
+			to_ip, resilience = values.popitem()
+			raptor_weight = 0
+			if ips_to_bandwidthN[to_ip] != 0:
+				raptor_weight = resilience*alpha + (1-alpha)*ips_to_bandwidthN[to_ip]
 			else:
-				print("sorry we cannot find the to client asn %s ips" % to_as)
+				raptor_weight = 0
+			if to_ip in client_as_weights:
+				client_as_weights[to_ip].append(raptor_weight)
+			else:
+				client_as_weights[to_ip] = [raptor_weight]
 		weights[key] = deepcopy(client_as_weights)
 data_file.close()
 total_graph = []
@@ -107,19 +115,25 @@ number_ases = 0
 num_below_fifty = 0 
 as_to_resilience = {}
 bandwidth = 0
+as_bandwidths = dict()
 for key in as_to_ip_probability:
 	number_ases+=1
 	resilience = 0 
+	as_bandwidths[key] = 0
 	for ip in as_to_ip_probability[key]:
 		num_in_list = 0 
 		for index,weight in enumerate(as_to_ip_probability[key][ip]):
 			num_in_list += 1
-			total_resilience+= weight*ip_to_resilience[key][ip][index]
-			resilience += weight*ip_to_resilience[key][ip][index]
-			if float(key) == test_as:
-				bandwidth += weight*ips_to_bandwidth[ip]
-	as_to_resilience[key] = resilience
-bandwidths.append(bandwidth)
+			total_resilience+= weight*asIP_to_resilience[key][ip][index]
+			resilience += weight*asIP_to_resilience[key][ip][index]
+			as_bandwidths[key]+= weight*ips_to_bandwidth[ip]
+		as_to_resilience[key] = resilience
+average_bandwidth = 0
+for key in as_bandwidths:
+	average_bandwidth += as_bandwidths[key]
+average_bandwidth = average_bandwidth/number_ases
+bandwidths.append(average_bandwidth)
+
 res = []
 cdf = []
 for x in my_range(0,1,.001):
@@ -138,6 +152,87 @@ Non differentially private Alpha =.5
 '''
 alpha = .5
 #Create dictionary of client weights given as 
+with open("tille_resiliences.json") as data_file: 
+	data = json.load(data_file)
+	weights = {}
+	for key, values in data.items():
+		client_as_weights = {}
+		while values:
+			to_ip, resilience = values.popitem()
+			raptor_weight = 0
+			if ips_to_bandwidthN[to_ip] != 0:
+				raptor_weight = resilience*alpha + (1-alpha)*ips_to_bandwidthN[to_ip]
+			else:
+				raptor_weight = 0
+			if to_ip in client_as_weights:
+				client_as_weights[to_ip].append(raptor_weight)
+			else:
+				client_as_weights[to_ip] = [raptor_weight]
+		weights[key] = deepcopy(client_as_weights)
+data_file.close()
+
+# Determine the probabilities of selecting a given ip
+total_as_resilience = 0
+as_to_ip_probability = {}
+weights_copy = deepcopy(weights)
+while weights_copy:
+	key, values = weights_copy.popitem()
+	as_to_ip_probability[key] = dict()
+	total_weight = 0 
+	while values:
+		ip, weight = values.popitem()
+		for wei in weight:
+			total_weight += wei
+		as_to_ip_probability[key][ip] = weight 
+	for ip in as_to_ip_probability[key]:
+		for index,weight in enumerate(as_to_ip_probability[key][ip]):
+			as_to_ip_probability[key][ip][index] = weight/total_weight
+
+# For each As determine what the the total resilience given
+# the particular alpha
+total_resilience = 0
+number_ases = 0
+num_below_fifty = 0 
+as_to_resilience = {}
+bandwidth = 0
+as_bandwidths = dict()
+for key in as_to_ip_probability:
+	number_ases+=1
+	resilience = 0 
+	as_bandwidths[key] = 0
+	for ip in as_to_ip_probability[key]:
+		num_in_list = 0 
+		for index,weight in enumerate(as_to_ip_probability[key][ip]):
+			num_in_list += 1
+			total_resilience+= weight*asIP_to_resilience[key][ip][index]
+			resilience += weight*asIP_to_resilience[key][ip][index]
+			as_bandwidths[key]+= weight*ips_to_bandwidth[ip]
+		as_to_resilience[key] = resilience
+average_bandwidth = 0
+for key in as_bandwidths:
+	average_bandwidth += as_bandwidths[key]
+average_bandwidth = average_bandwidth/number_ases
+bandwidths.append(average_bandwidth)
+
+res = []
+cdf = []
+for x in my_range(0,1,.001):
+	res.append(x)
+	num_as = 0
+	for key in as_to_resilience:
+		if as_to_resilience[key] <= x:
+			num_as+=1
+	cdf.append(num_as/number_ases)
+graph_data = go.Scatter(x=res,y=cdf)
+total_graph.append(graph_data)
+
+
+'''
+Alpha = .5  and epsilon = 1 for 2*epsilon Differential Privacy
+
+
+'''
+
 with open("cg_resilience.json") as data_file: 
 	data = json.load(data_file)
 	weights = {}
@@ -165,64 +260,7 @@ with open("cg_resilience.json") as data_file:
 		weights[key] = deepcopy(client_as_weights)
 data_file.close()
 
-# Determine the probabilities of selecting a given ip
-total_as_resilience = 0
-as_to_ip_probability = {}
-weights_copy = deepcopy(weights)
-while weights_copy:
-	key, values = weights_copy.popitem()
-	as_to_ip_probability[key] = dict()
-	total_weight = 0 
-	while values:
-		ip, weight = values.popitem()
-		for wei in weight:
-			total_weight += wei
-		as_to_ip_probability[key][ip] =weight 
-	for ip in as_to_ip_probability[key]:
-		for index,weight in enumerate(as_to_ip_probability[key][ip]):
-			as_to_ip_probability[key][ip][index] = weight/total_weight
-
-# For each As determine what the the total resilience given
-# the particular alpha
-total_resilience = 0
-number_ases = 0
-num_below_fifty = 0 
-as_to_resilience = {}
-bandwidth = 0
-for key in as_to_ip_probability:
-	number_ases+=1
-	resilience = 0 
-	for ip in as_to_ip_probability[key]:
-		num_in_list = 0 
-		for index,weight in enumerate(as_to_ip_probability[key][ip]):
-			num_in_list += 1
-			total_resilience+= weight*ip_to_resilience[key][ip][index]
-			resilience += weight*ip_to_resilience[key][ip][index]
-			if float(key) == test_as:
-				bandwidth+= weight*ips_to_bandwidth[ip]
-	as_to_resilience[key] = resilience
-bandwidths.append(bandwidth)
-
-res = []
-cdf = []
-for x in my_range(0,1,.001):
-	res.append(x)
-	num_as = 0
-	for key in as_to_resilience:
-		if as_to_resilience[key] <= x:
-			num_as+=1
-	cdf.append(num_as/number_ases)
-graph_data = go.Scatter(x=res,y=cdf)
-total_graph.append(graph_data)
-
-
-'''
-Alpha = .5  and epsilon = 1 for 2*epsilon Differential Privacy
-
-
-'''
-
-for eps in my_range(epsilon,epsilon,.5):
+for eps in my_range(1,1,.5):
 	print(eps)
 	# Determine the probabilities of selecting a given ip from each as
 	total_as_resilience = 0
@@ -239,9 +277,9 @@ for eps in my_range(epsilon,epsilon,.5):
 			# therefore multiple raptor weights
 			for wei in weight:
 				total_weight += math.exp(wei*eps)
-			as_to_ip_probability[key][ip] = [math.exp(weight[0]*eps)]
+			as_to_ip_probability[key][ip] = [math.exp((weight[0]**.5)*eps)]
 			for wei in weight[1:]:
-				as_to_ip_probability[key][ip].append(math.exp(wei*eps))
+				as_to_ip_probability[key][ip].append(math.exp((wei**.5)*eps))
 		for ip in as_to_ip_probability[key]:
 			for index,weight in enumerate(as_to_ip_probability[key][ip]):
 				as_to_ip_probability[key][ip][index] = weight/total_weight
@@ -252,20 +290,24 @@ for eps in my_range(epsilon,epsilon,.5):
 	number_ases = 0
 	num_below_fifty = 0 
 	as_to_resilience = {}
-	bandwidth = 0
+	as_bandwidths = dict()
 	for key in as_to_ip_probability:
 		number_ases+=1
 		resilience = 0 
+		as_bandwidths[key] =0
 		for ip in as_to_ip_probability[key]:
 			num_in_list = 0 
 			for index,weight in enumerate(as_to_ip_probability[key][ip]):
 				num_in_list += 1
-				total_resilience+= weight*ip_to_resilience[key][ip][index]
-				resilience += weight*ip_to_resilience[key][ip][index]
-				if float(key) == test_as:
-					bandwidth+= weight*ips_to_bandwidth[ip]
+				total_resilience+= weight*asIP_to_resilience[key][ip][index]
+				resilience += weight*asIP_to_resilience[key][ip][index]
+				as_bandwidths[key]+= weight*ips_to_bandwidth[ip]
 		as_to_resilience[key] = resilience
-	bandwidths.append(bandwidth)
+	average_bandwidth = 0
+	for key in as_bandwidths:
+		average_bandwidth += as_bandwidths[key]
+	average_bandwidth = average_bandwidth/number_ases
+	bandwidths.append(average_bandwidth)
 	res = []
 	cdf = []
 	for x in my_range(0,1,.0001):
@@ -282,10 +324,14 @@ py.plot(total_graph,filename='cdf.html')
 print(bandwidths)
 
 alpha_string = "Alapha = " +str(alpha)
-private_string = alpha_string + " " +str(epsilon*2)+ "-Epsilon Differential Pivate Sel"
+private_string0 = alpha_string + " " +str(1)+ "-Epsilon"
+private_string1 = alpha_string + " " +str(.5)+ "-Epsilon"
+private_string2 = alpha_string + " " +str(1)+ "-Epsilon"
+private_string3 = alpha_string + " " +str(1.5)+ "-Epsilon"
+private_string4 = alpha_string + " " +str(2)+ "-Epsilon"
 
 data = [go.Bar(
-            x=['Alpha = 0', alpha_string, private_string],
+            x=['Alpha = 0', alpha_string,private_string0],
             y=bandwidths
     )]
 

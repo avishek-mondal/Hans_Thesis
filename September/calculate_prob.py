@@ -13,7 +13,7 @@ ips_to_bandwidthN= {}
 ips_to_bandwidth= {}
 ip_weighted_prob = {}
 epsilon_dict = {}
-alpha = 0
+alpha = .5
 for line in file1_bandwidth_normalized:
 	info = line.split(":")
 	key =info[0]
