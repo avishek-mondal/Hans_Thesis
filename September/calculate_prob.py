@@ -40,8 +40,6 @@ with open("cg_resilience.json") as data_file:
 	data = json.load(data_file)
 	weights = {}
 	for key, values in data.items():
-		if float(key) == 3:
-			print (key)
 		client_as_weights = {}
 		while values:
 			to_as, resilience = values.popitem()
@@ -50,9 +48,12 @@ with open("cg_resilience.json") as data_file:
 				for to_ip in to_ips_in_as:
 					raptor_weight = 0
 					if ips_to_bandwidthN[to_ip] != 0:
-						raptor_weight = resilience*alpha + (1-alpha)*ips_to_bandwidthN[to_ip]
+						raptor = (resilience*alpha)+ (1-alpha)*(ips_to_bandwidthN[to_ip])
+						if (raptor > 1):
+							print(raptor)
+						raptor_weight = math.exp(1.3*raptor)
 					else:
-						raptor_weight = 0
+						raptor_weight = 1
 						zeroes.add(to_ip)
 					if to_ip in client_as_weights:
 						client_as_weights[to_ip].append(raptor_weight)

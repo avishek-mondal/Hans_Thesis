@@ -22,7 +22,7 @@ ip_weighted_prob = {}
 epsilon_dict = {}
 ip_to_resilience = {}
 alpha = 0
-epsilon = 1
+epsilon = 2
 test_as = 3
 for line in file1_bandwidth_normalized:
 	info = line.split(":")

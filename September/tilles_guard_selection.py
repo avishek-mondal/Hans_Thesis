@@ -99,7 +99,7 @@ with open("tille_resiliences.json") as data_file:
 			to_ip, resilience = values.popitem()
 			raptor_weight = 0
 			if ips_to_bandwidthN[to_ip] != 0:
-				raptor_weight = resilience*alpha + (1-alpha)*ips_to_bandwidthN[to_ip]
+				raptor_weight =math.exp( resilience*alpha + (1-alpha)*ips_to_bandwidthN[to_ip])
 			else:
 				raptor_weight = 0
 			if to_ip in client_as_weights:
