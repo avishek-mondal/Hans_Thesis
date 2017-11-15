@@ -3,7 +3,7 @@ Contains code for 2017- 2018 ELE Thesis
 
 To Begin:
 1. Download Updated Tor Consensus 
-2. Download Updated Network Topology 
+2. Download Updated Network Topology from http://data.caida.org/datasets/as-relationships/serial-2/
 3. Extract Guard Ips and Bandwidths using getguard.py
 4. Use 
 ```
